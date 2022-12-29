@@ -9,10 +9,10 @@ import { JwtPayload } from '../../auth/JwtPayload'
 
 const logger = createLogger('auth')
 
-// TODO: Provide a URL that can be used to download a certificate that can be used
+// Provide a URL that can be used to download a certificate that can be used
 // to verify JWT token signature.
 // To get this URL you need to go to an Auth0 page -> Show Advanced Settings -> Endpoints -> JSON Web Key Set
-const jwksUrl = '...'
+const jwksUrl = 'https://dev-24qv6rweccntmbsi.us.auth0.com/.well-known/jwks.json'
 
 export const handler = async (
   event: CustomAuthorizerEvent
@@ -57,11 +57,44 @@ export const handler = async (
 async function verifyToken(authHeader: string): Promise<JwtPayload> {
   const token = getToken(authHeader)
   const jwt: Jwt = decode(token, { complete: true }) as Jwt
-
-  // TODO: Implement token verification
   // You should implement it similarly to how it was implemented for the exercise for the lesson 5
   // You can read more about how to do this here: https://auth0.com/blog/navigating-rs256-and-jwks/
-  return undefined
+  const certificate: string = await getCertificate(jwt.header.kid);
+  logger.info(`Get certificate=${certificate}`)
+  return verify(token, certificate, { algorithms: ['RS256'] }) as JwtPayload;
+}
+
+async function getCertificate(headerKid: string): Promise<string> {
+  /**
+   * Get Certificate from headerKid
+   */
+  const getJwks = await Axios.get(jwksUrl, { 
+    headers: { "Accept-Encoding": "gzip,deflate,compress" } 
+  });
+
+  const signingKeys = getJwks.data.keys
+    .filter(key => key.use === 'sig'
+                && key.kty === 'RSA'
+                && key.kid
+                && ((key.x5c && key.x5c.length) || (key.n && key.e))
+    ).map(key => {
+      return { kid: key.kid, nbf: key.nbf, publicKey: certToPEM(key.x5c[0]) };
+    });
+  
+  // If at least a single signing key doesn't exist we have a problem... Kaboom.
+  if (!signingKeys.length) {
+    throw new Error('The JWKS endpoint did not have any signed keys');
+  }
+  
+  const key = signingKeys.find(k => k.kid === headerKid);
+  logger.info(`headerKid=${headerKid} signingKeys=${signingKeys} key=${key}`)
+  return key.publicKey;
+}
+
+function certToPEM(cert: string): string {
+  cert = cert.match(/.{1,64}/g).join('\n');
+  cert = `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----\n`;
+  return cert;
 }
 
 function getToken(authHeader: string): string {
