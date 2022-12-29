@@ -60,8 +60,10 @@ export class TodosAccess {
         logger.info(`Call getTodosForUser with userId=${userId}`)
         const params = {
             TableName: this.todosTable,
+            IndexName: process.env.TODOS_DUE_DATE_INDEX,
             KeyConditionExpression: "userId = :userId",
             ExpressionAttributeValues: {":userId": userId},
+            ScanIndexForward: true,
         }
 
         const res = await this.docClient.query(
@@ -88,6 +90,21 @@ export class TodosAccess {
         const result = await this.docClient.update(params).promise();
         logger.info("Succeed")
         return result.Attributes as TodoItem;
+    }
+    async getTodoForUser(userId: string, todoId: string): Promise<TodoItem[]> {
+        const params = {
+            TableName: this.todosTable,
+            KeyConditionExpression: "userId = :userId and id = :todoId",
+            ExpressionAttributeValues: {
+                ":userId": userId,
+                ":todoId": todoId,
+            },
+        }
+        const res = await this.docClient.query(
+            params
+        ).promise()
+        const items = res.Items
+        return items as TodoItem[]
     }
 
 }
