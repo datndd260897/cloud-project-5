@@ -43,3 +43,8 @@ export async function getTodosForUser(userId: string): Promise<TodoItem[]> {
   logger.info(`Call getTodosForUser with: ${userId}`)
   return todosAccess.getTodosForUser(userId);
 }
+
+export async function getTodoForUser(userId: string, id: string): Promise<TodoItem[]> {
+  logger.info(`Call getTodoForUser with: ${userId}`)
+  return todosAccess.getTodoForUser(userId, id);
+}

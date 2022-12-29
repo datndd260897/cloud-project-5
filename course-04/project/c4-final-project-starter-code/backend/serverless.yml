@@ -24,7 +24,8 @@ provider:
   environment:
     TODOS_TABLE: Todos-Table
     TODOS_CREATED_AT_INDEX: CreatedAtIndex
-    ATTACHMENT_S3_BUCKET: kiwi-dat-serverless-c4-todo-images
+    TODOS_DUE_DATE_INDEX: DueDateIndex
+    ATTACHMENT_S3_BUCKET: kiwi-dat-serverless-c4-todo-images2
     SIGNED_URL_EXPIRATION: 300
 
   logs:
@@ -55,13 +56,42 @@ functions:
           path: todos
           cors: true
           authorizer: Auth
-    iamRoleStatementsName: get-iam-todo-role-${self:provider.stage}
+    iamRoleStatementsName: get-iam-todos-role-${self:provider.stage}
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:Query
           - dynamodb:GetItem
+        Resource: [
+          'arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}',
+          'arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/*'
+        ]
+
+  GetTodo:
+    handler: src/lambda/http/getTodo.handler
+    events:
+      - http:
+          method: get
+          path: todos/{todoId}
+          cors: true
+          authorizer: Auth
+    iamRoleStatementsName: get-iam-todo-role-${self:provider.stage}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:Query
+        Resource: [
+          'arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}',
+          'arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/*'
+        ]
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+          - xray:PutTelemetryRecords
+          - dynamodb:Query
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+
       
 
   # Configure this function - 
@@ -106,7 +136,7 @@ functions:
         Action:
           - dynamodb:UpdateItem
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
-    
+
 
   # Configure this function
   # Provide property for setting up CORS, Authorizer, iamRoleStatements
@@ -124,6 +154,11 @@ functions:
         Action:
           - dynamodb:DeleteItem
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+      - Effect: Allow
+        Action:
+          - s3:DeleteObject
+        Resource: 'arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*'
+
 
   # Configure this function
   # Provide property for setting up CORS, Authorizer, iamRoleStatements
@@ -146,8 +181,26 @@ functions:
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
       - Effect: Allow
         Action:
-          - s3:*
+          - s3:PutObject
         Resource: 'arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*'
+      
+
+  DeleteAttachment:
+    handler: src/lambda/http/deleteAttachment.handler
+    events:
+      - http:
+          method: delete
+          path: todos/{todoId}/attachment
+          cors: true
+          authorizer: Auth
+    iamRoleStatementsName: serverless-delete-attachment-role-${self:provider.stage}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:DeleteObject
+        Resource: 'arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*'
+
+
 
 resources:
   Resources:
@@ -183,6 +236,8 @@ resources:
             AttributeType: S
           - AttributeName: createdAt
             AttributeType: S
+          - AttributeName: dueDate
+            AttributeType: S
         KeySchema:
           - AttributeName: userId
             KeyType: HASH
@@ -199,6 +254,16 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL # What attributes will be copied to an index
+
+          - IndexName: ${self:provider.environment.TODOS_DUE_DATE_INDEX}
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: dueDate
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
 
     # Complete the bucket properties below. 
     # Do not forget to add the CorsConfiguration propoerty

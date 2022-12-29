@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { Form, Button } from 'semantic-ui-react'
 import Auth from '../auth/Auth'
-import { getUploadUrl, uploadFile } from '../api/todos-api'
+import { getUploadUrl, uploadFile, getTodo, patchTodo } from '../api/todos-api'
+import { Todo } from '../types/Todo'
 
 enum UploadState {
   NoUpload,
@@ -19,6 +20,7 @@ interface EditTodoProps {
 }
 
 interface EditTodoState {
+  todo: Todo
   file: any
   uploadState: UploadState
 }
@@ -28,8 +30,21 @@ export class EditTodo extends React.PureComponent<
   EditTodoState
 > {
   state: EditTodoState = {
+    todo: {
+      name: ""
+    } as Todo,
     file: undefined,
     uploadState: UploadState.NoUpload
+  }
+
+  async componentDidMount() {
+    try {
+      const todo: Todo[] = await getTodo(this.props.auth.getIdToken(), this.props.match.params.todoId)
+      this.setState({todo: todo[0]})
+      console.log("todo", this.state.todo)
+    } catch (e) {
+      alert(`Failed to fetch todos: ${(e as Error).message}`)
+    }
   }
 
   handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,6 +54,18 @@ export class EditTodo extends React.PureComponent<
     this.setState({
       file: files[0]
     })
+  }
+
+  handleTodoNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const name = event.target.value
+    if (!name) return
+
+    this.setState(prevState => ({
+      todo: {                   // object that we want to update
+          ...prevState.todo,    // keep all other key-value pairs
+          name: name       // update the value of specific key
+      }
+  }))
   }
 
   handleSubmit = async (event: React.SyntheticEvent) => {
@@ -55,11 +82,17 @@ export class EditTodo extends React.PureComponent<
       console.log("uploadUrl", uploadUrl)
 
       this.setUploadState(UploadState.UploadingFile)
+      console.log("state.name ", this.state.todo.name)
       await uploadFile(uploadUrl, this.state.file)
+      await patchTodo(this.props.auth.getIdToken(), this.state.todo.id, {
+        name: this.state.todo.name,
+        dueDate: this.state.todo.dueDate,
+        done: this.state.todo.done
+      })
 
-      alert('File was uploaded!')
+      alert('Item saved')
     } catch (e) {
-      alert('Could not upload a file: ' + (e as Error).message)
+      alert('Could not save item: ' + (e as Error).message)
     } finally {
       this.setUploadState(UploadState.NoUpload)
     }
@@ -74,9 +107,18 @@ export class EditTodo extends React.PureComponent<
   render() {
     return (
       <div>
-        <h1>Upload new image</h1>
+        <h1>Edit</h1>
 
         <Form onSubmit={this.handleSubmit}>
+        <Form.Field>
+            <label>Name</label>
+            <input
+              type="text"
+              defaultValue={this.state.todo.name}
+              placeholder={this.state.todo.name}
+              onChange={this.handleTodoNameChange}
+            />
+          </Form.Field>
           <Form.Field>
             <label>File</label>
             <input
@@ -103,7 +145,7 @@ export class EditTodo extends React.PureComponent<
           loading={this.state.uploadState !== UploadState.NoUpload}
           type="submit"
         >
-          Upload
+          Save
         </Button>
       </div>
     )

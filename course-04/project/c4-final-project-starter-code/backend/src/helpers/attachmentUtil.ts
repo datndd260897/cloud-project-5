@@ -29,3 +29,24 @@ export function createAttachmentPresignedUrl(todoId: string): string {
     return signedUrl as string;
       
   }
+
+
+export async function deleteAttachment(todoId: string) {
+  try {
+    const params = {
+      Bucket: process.env.ATTACHMENT_S3_BUCKET,
+      Key: todoId,
+    }
+    await s3.headObject(params).promise()
+    logger.info("The file is already existed in S3")
+    try {
+      await s3.deleteObject(params).promise()
+      logger.info("File was deleted")
+    }
+    catch (err) {
+        logger.info("Exception when delete file with error : " + JSON.stringify(err))
+    }
+  } catch (err) {
+    logger.info("File is not existed: " + err.code)
+}
+}

@@ -17,6 +17,19 @@ export async function getTodos(idToken: string): Promise<Todo[]> {
   return response.data.items
 }
 
+export async function getTodo(idToken: string, todoId: string): Promise<Todo[]> {
+  console.log('getTodo fetch todos')
+
+  const response = await Axios.get(`${apiEndpoint}/todos/${todoId}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    },
+  })
+  console.log('getTodo Todos:', response.data)
+  return response.data.items
+}
+
 export async function createTodo(
   idToken: string,
   newTodo: CreateTodoRequest
@@ -54,6 +67,19 @@ export async function deleteTodo(
     }
   })
 }
+
+export async function deleteAttachment(
+  idToken: string,
+  todoId: string
+): Promise<void> {
+  await Axios.delete(`${apiEndpoint}/todos/${todoId}/attachment`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    }
+  })
+}
+
 
 export async function getUploadUrl(
   idToken: string,
